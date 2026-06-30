@@ -82,6 +82,20 @@ export function RetroBoard({
     [room.participants],
   )
 
+  useEffect(() => {
+    const currentIds = new Set(room.cards.map((c) => c.id))
+    const newIds = room.cards.filter((c) => !prevCardIdsRef.current.has(c.id)).map((c) => c.id)
+
+    if (newIds.length > 0 && prevCardIdsRef.current.size > 0) {
+      setEnteringCardIds(new Set(newIds))
+      const timer = window.setTimeout(() => setEnteringCardIds(new Set()), 500)
+      prevCardIdsRef.current = currentIds
+      return () => window.clearTimeout(timer)
+    }
+
+    prevCardIdsRef.current = currentIds
+  }, [room.cards])
+
   const gridClass = GRID_COLS_CLASS[room.columns.length] ?? 'md:grid-cols-3'
   const canAddColumn = room.canManageColumns && room.columns.length < 6
 
@@ -183,7 +197,7 @@ export function RetroBoard({
     <div className="retro-page mx-auto min-h-screen max-w-7xl px-4 py-6 sm:px-6">
       <header className="board-header mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl px-5 py-4 sm:px-6">
         <div className="flex items-start gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-brand-yellow/35 bg-gradient-to-br from-amber-100 to-yellow-200 text-2xl shadow-sm">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-brand-yellow/35 bg-gradient-to-br from-amber-500/30 to-yellow-600/20 text-2xl shadow-[0_0_24px_rgba(234,179,8,0.2)]">
             🔄
           </div>
           <div>
@@ -197,11 +211,11 @@ export function RetroBoard({
                 maxLength={80}
                 autoFocus
                 placeholder="Sprint name or retro title"
-                className="input-field mt-1 w-full max-w-md rounded-xl px-3 py-2 text-2xl font-bold tracking-tight text-brand-black sm:text-3xl"
+                className="input-field mt-1 w-full max-w-md rounded-xl px-3 py-2 text-2xl font-bold tracking-tight sm:text-3xl"
               />
             ) : (
               <div className="mt-1 flex items-center gap-2">
-                <h1 className="text-2xl font-bold tracking-tight text-brand-black sm:text-3xl">{displayTitle}</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-on-dark sm:text-3xl">{displayTitle}</h1>
                 {room.isFacilitator && (
                   <button
                     type="button"
@@ -209,7 +223,7 @@ export function RetroBoard({
                       setTitleDraft(room.title)
                       setEditingTitle(true)
                     }}
-                    className="text-subtle rounded-lg px-2 py-1 text-xs hover:bg-black/5 hover:text-brand-black"
+                    className="text-subtle rounded-lg px-2 py-1 text-xs hover:bg-white/10 hover:text-on-dark"
                     title="Edit retro title"
                   >
                     ✏️
@@ -218,13 +232,14 @@ export function RetroBoard({
               </div>
             )}
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="rounded-full border border-black/8 bg-white/80 px-2.5 py-1 font-mono text-xs font-semibold text-brand-yellow-dark">
+              <span className="room-code-chip rounded-full px-2.5 py-1 font-mono text-xs font-semibold">
                 {room.roomId}
               </span>
               <span className="text-muted text-xs">
                 {room.participantCount}/{room.maxParticipants} participants
               </span>
-              <span className="badge-live inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold text-brand-yellow-dark">
+              <span className="badge-live inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold">
+                {room.phase !== 'done' && <span className="badge-live-dot" aria-hidden />}
                 {PHASE_ICONS[room.phase]} {PHASE_LABELS[room.phase]}
               </span>
             </div>
@@ -276,6 +291,7 @@ export function RetroBoard({
             room={room}
             participantsById={participantsById}
             selectedCardIds={selectedCardIds}
+            enteringCardIds={enteringCardIds}
             onSelectCard={toggleSelect}
             onAddCard={onAddCard}
             onUpdateCard={onUpdateCard}
@@ -331,6 +347,16 @@ export function RetroBoard({
             <button
               type="button"
               onClick={() => setShowAddColumn(true)}
-              className="w-full rounded-2xl border-2 border-dashed border-brand-yellow/35 bg-white/50 px-4 py-4 text-sm font-medium text-brand-yellow-dark transition hover:border-brand-yellow/55 hover:bg-white/80 hover:shadow-sm"
+              className="add-column-btn w-full rounded-2xl px-4 py-4 text-sm font-medium"
             >
-              + Add
+              + Add another column
+            </button>
+          )}
+        </div>
+      )}
+
+      {showExport && <ExportSummaryModal room={room} onClose={() => setShowExport(false)} />}
+      <ActivityToastStack toasts={toasts} onDismiss={dismissToast} />
+    </div>
+  )
+}

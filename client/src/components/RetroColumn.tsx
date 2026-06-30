@@ -245,7 +245,7 @@ export function RetroColumn({
             <textarea
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={columnComposePlaceholder(column, columnIndex)}
+              placeholder={columnComposePlaceholder(column)}
               rows={2}
               className="input-field mb-2 w-full rounded-xl px-3 py-2 text-sm"
             />

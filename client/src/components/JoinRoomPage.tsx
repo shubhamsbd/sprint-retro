@@ -74,7 +74,7 @@ export function JoinRoomPage({
     return (
       <div className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-4 py-10">
         <div className="panel-accent rounded-3xl p-8 text-center">
-          <h1 className="text-2xl font-bold text-brand-black">Room not found</h1>
+          <h1 className="text-2xl font-bold text-on-dark">Room not found</h1>
           <p className="text-muted mt-2">
             Room <span className="font-mono text-brand-yellow-dark">{roomId}</span> does not exist or
             has been closed.
@@ -94,7 +94,7 @@ export function JoinRoomPage({
     return (
       <div className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-4 py-10">
         <div className="panel-accent rounded-3xl p-8 text-center">
-          <h1 className="text-2xl font-bold text-brand-black">Room is full</h1>
+          <h1 className="text-2xl font-bold text-on-dark">Room is full</h1>
           <p className="text-muted mt-2">
             Room <span className="font-mono text-brand-yellow-dark">{roomId}</span> already has{' '}
             {roomInfo.maxParticipants} participants.
@@ -117,9 +117,9 @@ export function JoinRoomPage({
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-brand-yellow/40 bg-brand-yellow/10 text-3xl">
             🔄
           </div>
-          <h1 className="text-2xl font-bold text-brand-black">Join retrospective</h1>
+          <h1 className="text-2xl font-bold text-on-dark">Join retrospective</h1>
           {roomInfo?.title.trim() ? (
-            <p className="mt-2 text-lg font-semibold text-brand-black">{roomInfo.title.trim()}</p>
+            <p className="mt-2 text-lg font-semibold text-on-dark">{roomInfo.title.trim()}</p>
           ) : null}
           <p className="text-muted mt-2">
             You&apos;ve been invited to room{' '}
@@ -141,7 +141,7 @@ export function JoinRoomPage({
               placeholder="Alex"
               required
               autoFocus
-              className="input-field w-full rounded-xl px-4 py-3"
+              className="input-field-light w-full rounded-xl px-4 py-3"
             />
           </label>
 
@@ -155,7 +155,7 @@ export function JoinRoomPage({
                 placeholder="Enter the password from your host"
                 required
                 minLength={4}
-                className="input-field w-full rounded-xl px-4 py-3"
+                className="input-field-light w-full rounded-xl px-4 py-3"
               />
             </label>
           )}

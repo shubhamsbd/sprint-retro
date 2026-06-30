@@ -242,7 +242,7 @@ export function columnEmptyState(
     : { icon, text: 'Empty for now' }
 }
 
-export function columnComposePlaceholder(column: RetroColumnDef, columnIndex: number): string {
+export function columnComposePlaceholder(column: RetroColumnDef): string {
   if (column.id === 'went_well') return 'Share a win…'
   if (column.id === 'to_improve') return 'What could be better?'
   if (column.id === 'action_items' || column.isActionItems) return 'Propose an action…'

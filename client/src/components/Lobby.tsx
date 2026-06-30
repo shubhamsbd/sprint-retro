@@ -95,7 +95,7 @@ export function Lobby({ connected, error, onCreateRoom, onJoinRoom, onClearError
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-brand-yellow/40 bg-brand-yellow/10 text-3xl">
             🔄
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-brand-black">Sprint Retrospective</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-on-dark">Sprint Retrospective</h1>
           <p className="text-muted mt-2">
             Reflect, vote, and capture action items with your team in real time.
           </p>
@@ -109,7 +109,7 @@ export function Lobby({ connected, error, onCreateRoom, onJoinRoom, onClearError
             className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
               mode === 'create'
                 ? 'bg-brand-yellow-light text-brand-black shadow-sm'
-                : 'text-muted hover:text-brand-black'
+                : 'text-muted hover:text-on-dark'
             }`}
           >
             Create room
@@ -120,7 +120,7 @@ export function Lobby({ connected, error, onCreateRoom, onJoinRoom, onClearError
             className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
               mode === 'join'
                 ? 'bg-brand-yellow-light text-brand-black shadow-sm'
-                : 'text-muted hover:text-brand-black'
+                : 'text-muted hover:text-on-dark'
             }`}
           >
             Join room
@@ -135,7 +135,7 @@ export function Lobby({ connected, error, onCreateRoom, onJoinRoom, onClearError
               onChange={(event) => setName(event.target.value)}
               placeholder="Alex"
               required
-              className="input-field w-full rounded-xl px-4 py-3"
+              className="input-field-light w-full rounded-xl px-4 py-3"
             />
           </label>
 
@@ -148,7 +148,7 @@ export function Lobby({ connected, error, onCreateRoom, onJoinRoom, onClearError
                 placeholder="A1B2C3"
                 required
                 maxLength={8}
-                className="input-field w-full rounded-xl px-4 py-3 font-mono uppercase tracking-widest"
+                className="input-field-light w-full rounded-xl px-4 py-3 font-mono uppercase tracking-widest"
               />
               {joinInfoLoading && roomId.trim().length >= 4 && (
                 <span className="text-subtle mt-1 block text-xs">Checking room…</span>
@@ -173,7 +173,7 @@ export function Lobby({ connected, error, onCreateRoom, onJoinRoom, onClearError
                   onChange={(event) => setRetroTitle(event.target.value)}
                   placeholder="e.g. Sprint 42 retrospective"
                   maxLength={80}
-                  className="input-field w-full rounded-xl px-4 py-3"
+                  className="input-field-light w-full rounded-xl px-4 py-3"
                 />
               </label>
               <label className="block">
@@ -185,7 +185,7 @@ export function Lobby({ connected, error, onCreateRoom, onJoinRoom, onClearError
                   onChange={(event) => setCustomRoomId(event.target.value.toUpperCase())}
                   placeholder="Leave blank to auto-generate"
                   maxLength={8}
-                  className="input-field w-full rounded-xl px-4 py-3 font-mono uppercase tracking-widest"
+                  className="input-field-light w-full rounded-xl px-4 py-3 font-mono uppercase tracking-widest"
                 />
               </label>
             </>
@@ -203,7 +203,7 @@ export function Lobby({ connected, error, onCreateRoom, onJoinRoom, onClearError
                   }}
                   className="h-4 w-4 rounded border-black/20 accent-amber-500"
                 />
-                <span className="text-sm text-brand-black">Password protect this room</span>
+                <span className="text-sm text-on-dark">Password protect this room</span>
               </label>
 
               {passwordProtected && (
@@ -216,7 +216,7 @@ export function Lobby({ connected, error, onCreateRoom, onJoinRoom, onClearError
                     placeholder="Set a password for your team"
                     required
                     minLength={4}
-                    className="input-field w-full rounded-xl px-4 py-3"
+                    className="input-field-light w-full rounded-xl px-4 py-3"
                   />
                 </label>
               )}
@@ -233,7 +233,7 @@ export function Lobby({ connected, error, onCreateRoom, onJoinRoom, onClearError
                 placeholder="Enter room password"
                 required
                 minLength={4}
-                className="input-field w-full rounded-xl px-4 py-3"
+                className="input-field-light w-full rounded-xl px-4 py-3"
               />
             </label>
           )}
