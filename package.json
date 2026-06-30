@@ -1,0 +1,23 @@
+{
+  "name": "sprint-retrospective",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,teal \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npx tsx watch scripts/dev-server.ts",
+    "dev:web": "npm run dev --prefix client",
+    "build": "npm run build --prefix client"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.35.3",
+    "redis": "^5.8.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.12.3",
+    "@vercel/node": "^5.3.0",
+    "concurrently": "^9.2.0",
+    "express": "^5.1.0",
+    "tsx": "^4.20.5",
+    "typescript": "~5.9.2"
+  }
+}

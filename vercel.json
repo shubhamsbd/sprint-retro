@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm install && npm install --prefix client",
+  "buildCommand": "npm run build --prefix client",
+  "outputDirectory": "client/dist",
+  "devCommand": "npm run dev:web",
+  "functions": {
+    "api/rooms/[roomId]/[action].ts": {
+      "maxDuration": 300
+    }
+  },
+  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+}
