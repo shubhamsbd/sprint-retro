@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEven
 import { useRoomActivity } from '../hooks/useRoomActivity'
 import { getRetroDisplayTitle } from '../lib/export'
 import { getRoomInviteUrl } from '../lib/urls'
-import { GRID_COLS_CLASS, PHASE_ICONS, PHASE_LABELS, type ClientRoomState, type ColumnId } from '../types'
+import { PHASE_ICONS, PHASE_LABELS, type ClientRoomState, type ColumnId } from '../types'
 import { ActivityToastStack } from './ActivityToastStack'
+import { ConfirmModal } from './ConfirmModal'
 import { ExportSummaryModal } from './ExportSummaryModal'
-import { FacilitatorToolbar } from './FacilitatorToolbar'
+import { FacilitatorToolbar, SessionTopActions } from './FacilitatorToolbar'
 import { ParticipantBar } from './ParticipantBar'
+import { PhaseStepper } from './PhaseStepper'
 import { RetroColumn } from './RetroColumn'
 
 interface RetroBoardProps {
@@ -22,6 +24,7 @@ interface RetroBoardProps {
   onRemoveColumn: (columnId: string) => void
   onRenameColumn: (columnId: string, label: string) => void
   onUpdateTitle: (title: string) => void
+  onSetCommentAuthorsVisible: (visible: boolean) => void
   onToggleReaction: (cardId: string, emoji: string) => void
   onAddComment: (cardId: string, text: string, parentId?: string | null) => void
   onToggleCommentLike: (cardId: string, commentId: string) => void
@@ -48,6 +51,7 @@ export function RetroBoard({
   onRemoveColumn,
   onRenameColumn,
   onUpdateTitle,
+  onSetCommentAuthorsVisible,
   onToggleReaction,
   onAddComment,
   onToggleCommentLike,
@@ -73,6 +77,12 @@ export function RetroBoard({
   }, [room.title, editingTitle])
   const [showAddColumn, setShowAddColumn] = useState(false)
   const [newColumnLabel, setNewColumnLabel] = useState('')
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string
+    message: string
+    confirmLabel: string
+    onConfirm: () => void
+  } | null>(null)
   const [enteringCardIds, setEnteringCardIds] = useState<Set<string>>(new Set())
   const prevCardIdsRef = useRef<Set<string>>(new Set())
   const { toasts, dismissToast } = useRoomActivity(room)
@@ -96,7 +106,6 @@ export function RetroBoard({
     prevCardIdsRef.current = currentIds
   }, [room.cards])
 
-  const gridClass = GRID_COLS_CLASS[room.columns.length] ?? 'md:grid-cols-3'
   const canAddColumn = room.canManageColumns && room.columns.length < 6
 
   function toggleSelect(cardId: string) {
@@ -141,14 +150,20 @@ export function RetroBoard({
 
   function handleRemoveColumn(columnId: string) {
     const column = room.columns.find((c) => c.id === columnId)
+    if (!column) return
+
     const cardCount = room.cards.filter((c) => c.columnId === columnId).length
     const message =
       cardCount > 0
-        ? `Remove "${column?.label}" and its ${cardCount} card${cardCount === 1 ? '' : 's'}?`
-        : `Remove "${column?.label}"?`
-    if (window.confirm(message)) {
-      onRemoveColumn(columnId)
-    }
+        ? `This will permanently remove "${column.label}" and its ${cardCount} card${cardCount === 1 ? '' : 's'}.`
+        : `This will permanently remove the "${column.label}" column.`
+
+    setConfirmDialog({
+      title: 'Remove column',
+      message,
+      confirmLabel: 'Remove column',
+      onConfirm: () => onRemoveColumn(columnId),
+    })
   }
 
   async function copyInvite() {
@@ -194,168 +209,261 @@ export function RetroBoard({
   }
 
   return (
-    <div className="retro-page mx-auto min-h-screen max-w-7xl px-4 py-6 sm:px-6">
-      <header className="board-header mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl px-5 py-4 sm:px-6">
-        <div className="flex items-start gap-4">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-brand-yellow/35 bg-gradient-to-br from-amber-500/30 to-yellow-600/20 text-2xl shadow-[0_0_24px_rgba(234,179,8,0.2)]">
-            🔄
-          </div>
-          <div>
-            <p className="text-subtle text-[10px] font-semibold uppercase tracking-[0.2em]">Sprint retrospective</p>
-            {editingTitle && room.isFacilitator ? (
-              <input
-                value={titleDraft}
-                onChange={(event) => setTitleDraft(event.target.value)}
-                onBlur={commitTitle}
-                onKeyDown={handleTitleKeyDown}
-                maxLength={80}
-                autoFocus
-                placeholder="Sprint name or retro title"
-                className="input-field mt-1 w-full max-w-md rounded-xl px-3 py-2 text-2xl font-bold tracking-tight sm:text-3xl"
-              />
-            ) : (
-              <div className="mt-1 flex items-center gap-2">
-                <h1 className="text-2xl font-bold tracking-tight text-on-dark sm:text-3xl">{displayTitle}</h1>
-                {room.isFacilitator && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTitleDraft(room.title)
-                      setEditingTitle(true)
-                    }}
-                    className="text-subtle rounded-lg px-2 py-1 text-xs hover:bg-white/10 hover:text-on-dark"
-                    title="Edit retro title"
-                  >
-                    ✏️
-                  </button>
+    <div className="retro-page mx-auto flex min-h-screen w-full max-w-[1600px] flex-col px-3 py-4 sm:px-4 lg:h-dvh lg:max-h-dvh lg:min-h-0 lg:overflow-hidden lg:px-6 lg:py-5">
+      <div className="board-layout flex min-h-0 flex-1 flex-col">
+        <aside className="board-sidebar">
+          <div className="sidebar-section">
+            <div className="mb-3 flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-black/8 bg-brand-gray text-lg">
+                🔄
+              </div>
+              <div className="min-w-0">
+                <p className="text-subtle text-[10px] font-semibold uppercase tracking-[0.16em]">
+                  Sprint retrospective
+                </p>
+                {editingTitle && room.isFacilitator ? (
+                  <input
+                    value={titleDraft}
+                    onChange={(event) => setTitleDraft(event.target.value)}
+                    onBlur={commitTitle}
+                    onKeyDown={handleTitleKeyDown}
+                    maxLength={80}
+                    autoFocus
+                    placeholder="Retro title"
+                    className="input-field mt-1 w-full rounded-lg px-2 py-1.5 text-base font-bold"
+                  />
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <h1 className="truncate text-lg font-bold text-on-dark">{displayTitle}</h1>
+                    {room.isFacilitator && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTitleDraft(room.title)
+                          setEditingTitle(true)
+                        }}
+                        className="text-subtle shrink-0 rounded p-1 text-xs hover:bg-black/5"
+                        title="Edit retro title"
+                      >
+                        ✏️
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="room-code-chip rounded-full px-2.5 py-1 font-mono text-xs font-semibold">
+            </div>
+
+            <div className="mb-3 flex flex-wrap gap-1.5">
+              <span className="room-code-chip rounded-full px-2 py-0.5 font-mono text-[11px] font-semibold">
                 {room.roomId}
               </span>
-              <span className="text-muted text-xs">
-                {room.participantCount}/{room.maxParticipants} participants
+              <span className="rounded-full border border-black/8 bg-brand-gray px-2 py-0.5 text-[11px] text-muted">
+                {room.participantCount}/{room.maxParticipants}
               </span>
-              <span className="badge-live inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold">
+              <span className="inline-flex items-center gap-1 rounded-full border border-black/8 bg-brand-gray px-2 py-0.5 text-[11px] text-muted">
                 {room.phase !== 'done' && <span className="badge-live-dot" aria-hidden />}
                 {PHASE_ICONS[room.phase]} {PHASE_LABELS[room.phase]}
               </span>
             </div>
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => void copyInvite()} className="btn-secondary rounded-xl px-4 py-2 text-sm">
-            {copiedInvite ? '✓ Copied!' : 'Copy invite link'}
-          </button>
-          <button type="button" onClick={() => void onLeave()} className="btn-secondary rounded-xl px-4 py-2 text-sm">
-            Leave room
-          </button>
-        </div>
-      </header>
 
-      <FacilitatorToolbar
-        room={room}
-        onSetPhase={onSetPhase}
-        onStartTimer={onStartTimer}
-        onStopTimer={onStopTimer}
-        onExport={() => setShowExport(true)}
-        onCloseRoom={onCloseRoom}
-        onAssignFacilitator={onAssignFacilitator}
-        onGroupSelected={handleGroupSelected}
-        selectedCount={selectedCardIds.size}
-      />
-
-      <div className="mb-5">
-        <ParticipantBar
-          participants={room.participants}
-          facilitatorId={room.facilitatorId}
-          youId={room.you.id}
-        />
-      </div>
-
-      {phaseHint && (
-        <div className="hint-banner mb-5 flex items-start gap-3 rounded-2xl px-4 py-3">
-          <span className="text-lg leading-none">💡</span>
-          <p className="text-muted text-sm leading-relaxed">{phaseHint}</p>
-        </div>
-      )}
-
-      <div className={`grid gap-5 ${gridClass}`}>
-        {room.columns.map((column, index) => (
-          <RetroColumn
-            key={column.id}
-            column={column}
-            columnIndex={index}
-            room={room}
-            participantsById={participantsById}
-            selectedCardIds={selectedCardIds}
-            enteringCardIds={enteringCardIds}
-            onSelectCard={toggleSelect}
-            onAddCard={onAddCard}
-            onUpdateCard={onUpdateCard}
-            onDeleteCard={onDeleteCard}
-            onVoteCard={onVoteCard}
-            onUnvoteCard={onUnvoteCard}
-            onUngroupCard={onUngroupCard}
-            onToggleReaction={onToggleReaction}
-            onAddComment={onAddComment}
-            onToggleCommentLike={onToggleCommentLike}
-            onToggleCommentReaction={onToggleCommentReaction}
-            onDeleteComment={onDeleteComment}
-            onRemoveColumn={
-              room.canManageColumns && room.columns.length > 1 ? handleRemoveColumn : undefined
-            }
-            onRenameColumn={room.canManageColumns ? onRenameColumn : undefined}
-          />
-        ))}
-      </div>
-
-      {canAddColumn && (
-        <div className="mt-5">
-          {showAddColumn ? (
-            <form onSubmit={handleAddColumn} className="compose-box flex flex-wrap items-end gap-3 p-4">
-              <div className="min-w-[200px] flex-1">
-                <label htmlFor="new-column-label" className="text-subtle mb-1.5 block text-xs font-medium">
-                  New column name
-                </label>
-                <input
-                  id="new-column-label"
-                  value={newColumnLabel}
-                  onChange={(e) => setNewColumnLabel(e.target.value)}
-                  placeholder="e.g. Shout-outs"
-                  className="input-field w-full rounded-xl px-3 py-2.5 text-sm"
-                  autoFocus
-                />
-              </div>
-              <button type="submit" disabled={!newColumnLabel.trim()} className="btn-primary rounded-xl px-5 py-2.5 text-sm">
-                Add column
-              </button>
+            <div className="sidebar-actions">
               <button
                 type="button"
-                onClick={() => {
-                  setShowAddColumn(false)
-                  setNewColumnLabel('')
-                }}
-                className="btn-secondary rounded-xl px-5 py-2.5 text-sm"
+                onClick={() => void copyInvite()}
+                className="btn-secondary rounded-xl px-3 py-2 text-sm"
               >
-                Cancel
+                {copiedInvite ? '✓ Copied!' : 'Copy invite link'}
               </button>
-            </form>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowAddColumn(true)}
-              className="add-column-btn w-full rounded-2xl px-4 py-4 text-sm font-medium"
-            >
-              + Add another column
-            </button>
+              <button type="button" onClick={() => void onLeave()} className="btn-secondary rounded-xl px-3 py-2 text-sm">
+                Leave room
+              </button>
+            </div>
+          </div>
+
+          <div className="sidebar-section">
+            {(room.isCreator && !room.isFacilitator) || (room.isCreator && room.participants.length > 1) ? (
+              <FacilitatorToolbar
+                variant="sidebar"
+                includeSessionControls={false}
+                room={room}
+                onSetPhase={onSetPhase}
+                onStartTimer={onStartTimer}
+                onStopTimer={onStopTimer}
+                onExport={() => setShowExport(true)}
+                onCloseRoom={onCloseRoom}
+                onAssignFacilitator={onAssignFacilitator}
+                onGroupSelected={handleGroupSelected}
+                selectedCount={selectedCardIds.size}
+              />
+            ) : null}
+          </div>
+
+          {room.isFacilitator && (
+            <div className="sidebar-section">
+              <p className="text-subtle mb-2 text-[10px] font-semibold uppercase tracking-[0.18em]">
+                Comment settings
+              </p>
+              <button
+                type="button"
+                onClick={() => onSetCommentAuthorsVisible(!room.showCommentAuthors)}
+                className={`comment-names-toggle ${room.showCommentAuthors ? 'comment-names-toggle-on' : ''}`}
+                aria-pressed={room.showCommentAuthors}
+              >
+                <span className="comment-names-toggle-label">Show names on cards & comments</span>
+                <span className="comment-names-toggle-state">
+                  {room.showCommentAuthors ? 'Visible' : 'Hidden'}
+                </span>
+              </button>
+              <p className="text-muted mt-2 text-[11px] leading-relaxed">
+                {room.showCommentAuthors
+                  ? 'Everyone can see who wrote each card and comment.'
+                  : 'Card and comment names are hidden for all participants.'}
+              </p>
+            </div>
           )}
-        </div>
-      )}
+
+          <div className="sidebar-section">
+            <ParticipantBar
+              variant="sidebar"
+              participants={room.participants}
+            facilitatorId={room.facilitatorId}
+            youId={room.you.id}
+            />
+          </div>
+
+          {phaseHint && (
+            <div className="sidebar-section flex items-start gap-2">
+              <span className="text-base leading-none">💡</span>
+              <p className="text-muted text-xs leading-relaxed">{phaseHint}</p>
+            </div>
+          )}
+        </aside>
+
+        <main className="board-main flex min-h-0 flex-1 flex-col">
+          <div className="board-phase-bar mb-4 shrink-0">
+            <div className="panel-accent rounded-2xl px-4 py-3 sm:px-5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-subtle mb-2 text-[10px] font-semibold uppercase tracking-[0.18em]">
+                    Session phase
+                    {!room.canManagePhase && (
+                      <span className="ml-2 normal-case tracking-normal text-muted">
+                        · {PHASE_LABELS[room.phase]}
+                      </span>
+                    )}
+                  </p>
+                  <PhaseStepper room={room} onSetPhase={onSetPhase} />
+                </div>
+                <SessionTopActions
+                  room={room}
+                  onStartTimer={onStartTimer}
+                  onStopTimer={onStopTimer}
+                  onExport={() => setShowExport(true)}
+                  onCloseRoom={onCloseRoom}
+                  onGroupSelected={handleGroupSelected}
+                  selectedCount={selectedCardIds.size}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="board-columns min-h-0 flex-1">
+            <div className="board-columns-grid h-full min-h-0 gap-4">
+            {room.columns.map((column, index) => (
+              <RetroColumn
+                key={column.id}
+                column={column}
+                columnIndex={index}
+                room={room}
+                participantsById={participantsById}
+                selectedCardIds={selectedCardIds}
+                enteringCardIds={enteringCardIds}
+                onSelectCard={toggleSelect}
+                onAddCard={onAddCard}
+                onUpdateCard={onUpdateCard}
+                onDeleteCard={onDeleteCard}
+                onVoteCard={onVoteCard}
+                onUnvoteCard={onUnvoteCard}
+                onUngroupCard={onUngroupCard}
+                onToggleReaction={onToggleReaction}
+                onAddComment={onAddComment}
+                onToggleCommentLike={onToggleCommentLike}
+                onToggleCommentReaction={onToggleCommentReaction}
+                onDeleteComment={onDeleteComment}
+                onRemoveColumn={
+                  room.canManageColumns && room.columns.length > 1 ? handleRemoveColumn : undefined
+                }
+                onRenameColumn={room.canManageColumns ? onRenameColumn : undefined}
+              />
+            ))}
+
+            {canAddColumn &&
+              (showAddColumn ? (
+                <form
+                  onSubmit={handleAddColumn}
+                  className="add-column-zone compose-box flex h-full min-h-[420px] flex-col p-4 lg:min-h-0"
+                >
+                  <p className="text-subtle mb-3 text-xs font-semibold uppercase tracking-[0.12em]">
+                    New column
+                  </p>
+                  <label htmlFor="new-column-label" className="text-subtle mb-1.5 block text-xs font-medium">
+                    Column name
+                  </label>
+                  <input
+                    id="new-column-label"
+                    value={newColumnLabel}
+                    onChange={(e) => setNewColumnLabel(e.target.value)}
+                    placeholder="e.g. Shout-outs"
+                    className="input-field mb-4 w-full rounded-xl px-3 py-2.5 text-sm"
+                    autoFocus
+                  />
+                  <div className="mt-auto flex flex-col gap-2">
+                    <button
+                      type="submit"
+                      disabled={!newColumnLabel.trim()}
+                      className="btn-primary rounded-xl px-5 py-2.5 text-sm"
+                    >
+                      Add column
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddColumn(false)
+                        setNewColumnLabel('')
+                      }}
+                      className="btn-secondary rounded-xl px-5 py-2.5 text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowAddColumn(true)}
+                  className="add-column-zone add-column-btn flex h-full min-h-[420px] flex-col items-center justify-center rounded-2xl px-4 py-4 text-sm font-medium lg:min-h-0"
+                >
+                  + Add another column
+                </button>
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
 
       {showExport && <ExportSummaryModal room={room} onClose={() => setShowExport(false)} />}
+      {confirmDialog && (
+        <ConfirmModal
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmLabel={confirmDialog.confirmLabel}
+          onConfirm={() => {
+            confirmDialog.onConfirm()
+            setConfirmDialog(null)
+          }}
+          onCancel={() => setConfirmDialog(null)}
+        />
+      )}
       <ActivityToastStack toasts={toasts} onDismiss={dismissToast} />
     </div>
   )

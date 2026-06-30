@@ -24,6 +24,7 @@ export default function App() {
     removeColumn,
     renameColumn,
     updateTitle,
+    setCommentAuthorsVisible,
     toggleReaction,
     addComment,
     toggleCommentLike,
@@ -54,6 +55,7 @@ export default function App() {
           onRemoveColumn={removeColumn}
           onRenameColumn={renameColumn}
           onUpdateTitle={updateTitle}
+          onSetCommentAuthorsVisible={setCommentAuthorsVisible}
           onToggleReaction={toggleReaction}
           onAddComment={addComment}
           onToggleCommentLike={toggleCommentLike}

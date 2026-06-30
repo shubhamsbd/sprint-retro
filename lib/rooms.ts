@@ -36,6 +36,7 @@ export interface Room {
   facilitatorId: string | null
   timerEndsAt: number | null
   timerDurationSec: number | null
+  showCommentAuthors: boolean
   passwordSalt: string | null
   passwordHash: string | null
   columns: RetroColumnDef[]
@@ -145,6 +146,7 @@ function toRoom(persisted: PersistedRoom): Room {
   return {
     ...persisted,
     title: persisted.title?.trim() ?? '',
+    showCommentAuthors: persisted.showCommentAuthors ?? true,
     columns: resolveColumns(persisted),
     participants: new Map(persisted.participants.map((p) => [p.id, p])),
     cards: new Map(persisted.cards.map((c) => [c.id, normalizeCard(c)])),
@@ -160,6 +162,7 @@ function toPersisted(room: Room): PersistedRoom {
     facilitatorId: room.facilitatorId,
     timerEndsAt: room.timerEndsAt,
     timerDurationSec: room.timerDurationSec,
+    showCommentAuthors: room.showCommentAuthors,
     passwordSalt: room.passwordSalt,
     passwordHash: room.passwordHash,
     columns: room.columns,
@@ -219,6 +222,7 @@ export async function createRoom(
     facilitatorId: participantId,
     timerEndsAt: null,
     timerDurationSec: null,
+    showCommentAuthors: true,
     passwordSalt: credentials?.salt ?? null,
     passwordHash: credentials?.hash ?? null,
     columns: [...DEFAULT_COLUMNS],
@@ -250,11 +254,27 @@ export async function getRoomPublicInfo(roomId: string) {
   }
 }
 
+export async function resumeRoom(
+  roomId: string,
+  participantId: string,
+): Promise<
+  | { ok: true; room: Room; participantId: string }
+  | { ok: false; reason: 'not_found' | 'participant_not_found' }
+> {
+  const room = await getRoom(roomId)
+  if (!room) return { ok: false, reason: 'not_found' }
+  if (!room.participants.has(participantId)) {
+    return { ok: false, reason: 'participant_not_found' }
+  }
+  return { ok: true, room, participantId }
+}
+
 export async function joinRoom(
   roomId: string,
   name: string,
   password?: string,
   avatarInput?: unknown,
+  reclaimParticipantId?: string,
 ): Promise<
   | { ok: true; room: Room; participantId: string }
   | { ok: false; reason: JoinFailureReason }
@@ -278,6 +298,15 @@ export async function joinRoom(
   }
 
   const trimmedName = name.trim()
+  const trimmedReclaimId = reclaimParticipantId?.trim()
+
+  if (trimmedReclaimId) {
+    const existing = room.participants.get(trimmedReclaimId)
+    if (existing && existing.name.toLowerCase() === trimmedName.toLowerCase()) {
+      return { ok: true, room, participantId: trimmedReclaimId }
+    }
+  }
+
   const duplicate = [...room.participants.values()].some(
     (p) => p.name.toLowerCase() === trimmedName.toLowerCase(),
   )
@@ -657,6 +686,20 @@ export async function updateRoomTitle(
   return true
 }
 
+export async function setCommentAuthorsVisible(
+  roomId: string,
+  participantId: string,
+  visible: boolean,
+): Promise<boolean> {
+  const room = await getRoom(roomId)
+  if (!room) return false
+  if (!isFacilitator(room, participantId)) return false
+
+  room.showCommentAuthors = visible
+  await persistRoom(room)
+  return true
+}
+
 export async function renameColumn(
   roomId: string,
   participantId: string,
@@ -840,6 +883,7 @@ export function serializeRoom(room: Room, viewerId: string): ClientRoomState {
     creatorId: room.creatorId,
     timerEndsAt: room.timerEndsAt,
     timerDurationSec: room.timerDurationSec,
+    showCommentAuthors: room.showCommentAuthors,
     passwordProtected: isPasswordProtected(room),
     participantCount: room.participants.size,
     maxParticipants: MAX_PARTICIPANTS,

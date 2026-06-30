@@ -1,5 +1,5 @@
 import express from 'express'
-import { emitRoomClosed, emitRoomState, subscribe } from '../lib/broadcast.js'
+import { emitRoomClosed, emitRoomState, notifyAfterLeave, subscribe } from '../lib/broadcast.js'
 import { isValidPhase } from '../lib/exportSummary.js'
 import {
   addCard,
@@ -18,6 +18,7 @@ import {
   moveCard,
   removeColumn,
   renameColumn,
+  resumeRoom,
   serializeRoom,
   setPhase,
   startTimer,
@@ -30,6 +31,7 @@ import {
   updateCard,
   updateParticipantAvatar,
   updateRoomTitle,
+  setCommentAuthorsVisible,
   voteCard,
 } from '../lib/rooms.js'
 import type { SessionPayload } from '../lib/types.js'
@@ -84,11 +86,12 @@ app.post('/api/rooms/create', async (req, res) => {
 })
 
 app.post('/api/rooms/join', async (req, res) => {
-  const { roomId, name, password, avatar } = req.body as {
+  const { roomId, name, password, avatar, participantId: reclaimParticipantId } = req.body as {
     roomId?: string
     name?: string
     password?: string
     avatar?: { emoji?: string; color?: string }
+    participantId?: string
   }
   if (!roomId?.trim() || !name?.trim()) {
     res.status(400).json({ ok: false, error: 'Room ID and name are required' })
@@ -109,7 +112,7 @@ app.post('/api/rooms/join', async (req, res) => {
     return
   }
 
-  const result = await joinRoom(roomId, name, trimmedPassword || undefined, avatar)
+  const result = await joinRoom(roomId, name, trimmedPassword || undefined, avatar, reclaimParticipantId)
   if (!result.ok) {
     const errors = {
       not_found: { status: 404, message: 'Room not found' },
@@ -127,6 +130,36 @@ app.post('/api/rooms/join', async (req, res) => {
   emitRoomState(joinedRoom.id)
 
   const payload: SessionPayload = { roomId: joinedRoom.id, participantId, state }
+  res.json({ ok: true, data: payload })
+})
+
+app.post('/api/rooms/resume', async (req, res) => {
+  const { roomId, participantId } = req.body as {
+    roomId?: string
+    participantId?: string
+  }
+
+  if (!roomId?.trim() || !participantId?.trim()) {
+    res.status(400).json({ ok: false, error: 'Room ID and participant ID are required' })
+    return
+  }
+
+  const result = await resumeRoom(roomId, participantId)
+  if (!result.ok) {
+    const errors = {
+      not_found: { status: 404, message: 'Room not found' },
+      participant_not_found: { status: 404, message: 'Session expired — rejoin with your name' },
+    } as const
+    const { status, message } = errors[result.reason]
+    res.status(status).json({ ok: false, error: message })
+    return
+  }
+
+  const { room, participantId: activeParticipantId } = result
+  const state = serializeRoom(room, activeParticipantId)
+  emitRoomState(room.id)
+
+  const payload: SessionPayload = { roomId: room.id, participantId: activeParticipantId, state }
   res.json({ ok: true, data: payload })
 })
 
@@ -295,6 +328,20 @@ actionRoute(
     )
   },
   'Unable to update title',
+  403,
+)
+
+actionRoute(
+  'set-comment-authors-visible',
+  async (roomId, body) => {
+    const { participantId, visible } = body
+    return (
+      typeof participantId === 'string' &&
+      typeof visible === 'boolean' &&
+      (await setCommentAuthorsVisible(roomId, participantId, visible))
+    )
+  },
+  'Only the facilitator can change comment name visibility',
   403,
 )
 
@@ -504,7 +551,7 @@ app.post('/api/rooms/:roomId/leave', async (req, res) => {
     return
   }
   await leaveRoom(participantId, req.params.roomId)
-  emitRoomState(req.params.roomId)
+  await notifyAfterLeave(req.params.roomId, participantId)
   res.json({ ok: true })
 })
 

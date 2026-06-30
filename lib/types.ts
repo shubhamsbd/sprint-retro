@@ -94,6 +94,7 @@ export interface RoomState {
   creatorId: string
   timerEndsAt: number | null
   timerDurationSec: number | null
+  showCommentAuthors: boolean
   passwordProtected: boolean
   participantCount: number
   maxParticipants: number

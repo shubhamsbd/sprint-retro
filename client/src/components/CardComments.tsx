@@ -10,6 +10,7 @@ interface CardCommentsProps {
   youId: string
   isFacilitator: boolean
   canComment: boolean
+  showCommentAuthors: boolean
   onAddComment: (cardId: string, text: string, parentId?: string | null) => void
   onToggleCommentLike: (cardId: string, commentId: string) => void
   onToggleCommentReaction: (cardId: string, commentId: string, emoji: string) => void
@@ -24,6 +25,7 @@ interface CommentItemProps {
   youId: string
   isFacilitator: boolean
   canComment: boolean
+  showCommentAuthors: boolean
   onAddComment: CardCommentsProps['onAddComment']
   onToggleCommentLike: CardCommentsProps['onToggleCommentLike']
   onToggleCommentReaction: CardCommentsProps['onToggleCommentReaction']
@@ -39,6 +41,7 @@ function CommentItem({
   youId,
   isFacilitator,
   canComment,
+  showCommentAuthors,
   onAddComment,
   onToggleCommentLike,
   onToggleCommentReaction,
@@ -67,10 +70,14 @@ function CommentItem({
     <div className={isReply ? 'ml-4 border-l-2 border-brand-yellow/25 pl-3' : ''}>
       <div className="rounded-xl border border-black/6 bg-white/80 p-2.5">
         <div className="mb-1.5 flex items-start justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-1.5">
-            {author && <UserAvatar avatar={author.avatar} size="sm" />}
-            <span className="truncate text-xs font-semibold text-brand-black">{author?.name ?? 'Unknown'}</span>
-          </div>
+          {showCommentAuthors ? (
+            <div className="flex min-w-0 items-center gap-1.5">
+              {author && <UserAvatar avatar={author.avatar} size="sm" />}
+              <span className="truncate text-xs font-semibold text-brand-black">{author?.name ?? 'Unknown'}</span>
+            </div>
+          ) : (
+            <span className="text-subtle text-[10px] font-semibold uppercase tracking-wide">Anonymous</span>
+          )}
           {canDelete && (
             <button
               type="button"
@@ -157,7 +164,7 @@ function CommentItem({
               value={replyDraft}
               onChange={(e) => setReplyDraft(e.target.value)}
               placeholder="Write a reply…"
-              className="input-field min-w-0 flex-1 rounded-lg px-2 py-1 text-xs"
+              className="input-field min-w-0 flex-1 rounded-lg px-3 py-2 text-xs"
               autoFocus
             />
             <button type="submit" disabled={!replyDraft.trim()} className="btn-primary rounded-lg px-2 py-1 text-xs">
@@ -179,6 +186,7 @@ function CommentItem({
               youId={youId}
               isFacilitator={isFacilitator}
               canComment={canComment}
+              showCommentAuthors={showCommentAuthors}
               onAddComment={onAddComment}
               onToggleCommentLike={onToggleCommentLike}
               onToggleCommentReaction={onToggleCommentReaction}
@@ -199,12 +207,13 @@ export function CardComments({
   youId,
   isFacilitator,
   canComment,
+  showCommentAuthors,
   onAddComment,
   onToggleCommentLike,
   onToggleCommentReaction,
   onDeleteComment,
 }: CardCommentsProps) {
-  const [expanded, setExpanded] = useState(comments.length > 0)
+  const [expanded, setExpanded] = useState(false)
   const [draft, setDraft] = useState('')
 
   const { topLevel, repliesByParent } = useMemo(() => {
@@ -233,20 +242,28 @@ export function CardComments({
 
   const totalCount = comments.length
 
+  if (!canComment && totalCount === 0) {
+    return null
+  }
+
   return (
-    <div className="mt-3 border-t border-black/8 pt-2" onClick={(e) => e.stopPropagation()}>
+    <div className="sticky-card-comments" onClick={(e) => e.stopPropagation()}>
       <button
         type="button"
         onClick={() => setExpanded((open) => !open)}
-        className="flex w-full items-center justify-between rounded-lg px-1 py-1 text-left text-xs font-medium text-brand-yellow-dark hover:bg-white/50"
+        className="sticky-card-comments-toggle"
+        aria-expanded={expanded}
       >
-        <span>💬 Comments{totalCount > 0 ? ` (${totalCount})` : ''}</span>
-        <span className="text-subtle">{expanded ? '▾' : '▸'}</span>
+        <span className="sticky-card-comments-label">
+          <span aria-hidden>💬</span>
+          Comments{totalCount > 0 ? ` · ${totalCount}` : ''}
+        </span>
+        <span className="sticky-card-comments-chevron">{expanded ? '▾' : '▸'}</span>
       </button>
 
       {expanded && (
         <div className="mt-2 space-y-2">
-          {topLevel.length === 0 && (
+          {topLevel.length === 0 && canComment && (
             <p className="text-subtle px-1 text-[11px]">No comments yet — start the discussion.</p>
           )}
 
@@ -260,6 +277,7 @@ export function CardComments({
               youId={youId}
               isFacilitator={isFacilitator}
               canComment={canComment}
+              showCommentAuthors={showCommentAuthors}
               onAddComment={onAddComment}
               onToggleCommentLike={onToggleCommentLike}
               onToggleCommentReaction={onToggleCommentReaction}
@@ -273,7 +291,7 @@ export function CardComments({
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Add a comment…"
-                className="input-field min-w-0 flex-1 rounded-lg px-2 py-1.5 text-xs"
+                className="input-field min-w-0 flex-1 rounded-lg px-3 py-2 text-xs"
               />
               <button type="submit" disabled={!draft.trim()} className="btn-primary rounded-lg px-3 py-1.5 text-xs">
                 Post

@@ -1,6 +1,6 @@
 import type { ServerResponse } from 'node:http'
 import { isPersistentStorageEnabled } from './roomPersistence.js'
-import { getRoom, serializeRoom } from './rooms.js'
+import { getRoom, leaveRoom, serializeRoom } from './rooms.js'
 
 export type SseResponse = Pick<ServerResponse, 'setHeader' | 'write' | 'on' | 'end'>
 
@@ -14,6 +14,64 @@ interface Subscriber {
 }
 
 const subscribers = new Set<Subscriber>()
+const pendingDisconnectLeaves = new Map<string, ReturnType<typeof setTimeout>>()
+
+/** Grace period before removing a participant who disconnected (allows page reload). */
+const DISCONNECT_GRACE_MS = 20_000
+
+function pendingLeaveKey(roomId: string, participantId: string): string {
+  return `${roomId.toUpperCase()}:${participantId}`
+}
+
+function hasActiveSubscriber(roomId: string, participantId: string): boolean {
+  const normalizedRoomId = roomId.toUpperCase()
+  for (const subscriber of subscribers) {
+    if (subscriber.roomId === normalizedRoomId && subscriber.participantId === participantId) {
+      return true
+    }
+  }
+  return false
+}
+
+function cancelScheduledLeave(roomId: string, participantId: string): void {
+  const key = pendingLeaveKey(roomId, participantId)
+  const timer = pendingDisconnectLeaves.get(key)
+  if (!timer) return
+  clearTimeout(timer)
+  pendingDisconnectLeaves.delete(key)
+}
+
+async function notifyAfterParticipantLeave(roomId: string): Promise<void> {
+  const room = await getRoom(roomId)
+  if (room) {
+    emitRoomState(roomId)
+    return
+  }
+  emitRoomClosed(roomId, 'The room ended because everyone left.')
+}
+
+async function removeParticipantAfterDisconnect(
+  roomId: string,
+  participantId: string,
+): Promise<void> {
+  if (hasActiveSubscriber(roomId, participantId)) return
+
+  await leaveRoom(participantId, roomId)
+  await notifyAfterParticipantLeave(roomId)
+}
+
+function scheduleParticipantLeaveOnDisconnect(roomId: string, participantId: string): void {
+  const key = pendingLeaveKey(roomId, participantId)
+  cancelScheduledLeave(roomId, participantId)
+
+  pendingDisconnectLeaves.set(
+    key,
+    setTimeout(() => {
+      pendingDisconnectLeaves.delete(key)
+      void removeParticipantAfterDisconnect(roomId, participantId)
+    }, DISCONNECT_GRACE_MS),
+  )
+}
 
 async function sendState(subscriber: Subscriber): Promise<void> {
   const room = await getRoom(subscriber.roomId)
@@ -37,13 +95,17 @@ function removeSubscriber(subscriber: Subscriber): void {
 }
 
 export function subscribe(roomId: string, participantId: string, res: SseResponse): void {
+  const normalizedRoomId = roomId.toUpperCase()
+
+  cancelScheduledLeave(normalizedRoomId, participantId)
+
   res.setHeader('Content-Type', 'text/event-stream')
   res.setHeader('Cache-Control', 'no-cache, no-transform')
   res.setHeader('Connection', 'keep-alive')
   res.setHeader('X-Accel-Buffering', 'no')
 
   const subscriber: Subscriber = {
-    roomId: roomId.toUpperCase(),
+    roomId: normalizedRoomId,
     participantId,
     res,
     heartbeat: setInterval(() => {
@@ -69,6 +131,7 @@ export function subscribe(roomId: string, participantId: string, res: SseRespons
 
   res.on('close', () => {
     removeSubscriber(subscriber)
+    scheduleParticipantLeaveOnDisconnect(normalizedRoomId, participantId)
   })
 }
 
@@ -81,9 +144,12 @@ export function emitRoomState(roomId: string): void {
   }
 }
 
-export function emitRoomClosed(roomId: string): void {
+export function emitRoomClosed(
+  roomId: string,
+  message = 'The room was closed by the facilitator.',
+): void {
   const normalizedRoomId = roomId.toUpperCase()
-  const payload = JSON.stringify({ message: 'The room was closed by the facilitator.' })
+  const payload = JSON.stringify({ message })
 
   for (const subscriber of subscribers) {
     if (subscriber.roomId !== normalizedRoomId) continue
@@ -91,4 +157,9 @@ export function emitRoomClosed(roomId: string): void {
     removeSubscriber(subscriber)
     subscriber.res.end?.()
   }
+}
+
+export async function notifyAfterLeave(roomId: string, participantId: string): Promise<void> {
+  cancelScheduledLeave(roomId, participantId)
+  await notifyAfterParticipantLeave(roomId)
 }

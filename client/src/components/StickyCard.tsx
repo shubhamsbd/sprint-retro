@@ -28,6 +28,7 @@ interface StickyCardProps {
   onDeleteComment: (cardId: string, commentId: string) => void
   participantsById: Map<string, Participant>
   canComment: boolean
+  showCommentAuthors: boolean
   columnClass: string
   cardIndex?: number
 }
@@ -56,6 +57,7 @@ export function StickyCard({
   onDeleteComment,
   participantsById,
   canComment,
+  showCommentAuthors,
   columnClass,
 }: StickyCardProps) {
   const [editing, setEditing] = useState(false)
@@ -77,7 +79,7 @@ export function StickyCard({
 
   return (
     <div
-      className={`sticky-card ${columnClass} group relative rounded-lg p-3 transition ${
+      className={`sticky-card ${columnClass} group relative transition ${
         selected ? 'sticky-card-selected' : ''
       } ${isNew ? 'sticky-card-enter' : ''} ${canVote || canGroup ? 'cursor-pointer' : ''}`}
       onClick={() => {
@@ -89,7 +91,7 @@ export function StickyCard({
       }}
     >
       {editing ? (
-        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+        <div className="sticky-card-inner space-y-2" onClick={(e) => e.stopPropagation()}>
           <div className="relative flex items-center gap-2">
             <button
               type="button"
@@ -122,7 +124,7 @@ export function StickyCard({
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            className="input-field w-full rounded-md px-2 py-1 text-sm"
+            className="input-field w-full rounded-lg px-3 py-2 text-sm leading-relaxed"
             rows={3}
             autoFocus
           />
@@ -148,26 +150,33 @@ export function StickyCard({
           </div>
         </div>
       ) : (
-        <>
-          <p className="whitespace-pre-wrap text-sm text-brand-black">
-            {card.emoji && <span className="mr-1.5">{card.emoji}</span>}
-            {card.text}
-          </p>
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5">
-              {author && <UserAvatar avatar={author.avatar} size="sm" />}
-              <span className="text-subtle text-xs">{author?.name ?? 'Unknown'}</span>
+        <div className="sticky-card-inner">
+          <div className="sticky-card-content">
+            {card.emoji && <span className="sticky-card-emoji">{card.emoji}</span>}
+            <p className="sticky-card-text whitespace-pre-wrap">{card.text}</p>
+          </div>
+
+          <div className="sticky-card-meta">
+            <div className="sticky-card-author">
+              {showCommentAuthors ? (
+                <>
+                  {author && <UserAvatar avatar={author.avatar} size="sm" />}
+                  <span>{author?.name ?? 'Unknown'}</span>
+                </>
+              ) : (
+                <span className="text-subtle text-[10px] font-semibold uppercase tracking-wide">Anonymous</span>
+              )}
             </div>
             {card.votes.length > 0 && (
-              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-brand-yellow-dark">
-                {card.votes.length} vote{card.votes.length === 1 ? '' : 's'}
+              <span className="sticky-card-votes">
+                ▲ {card.votes.length}
               </span>
             )}
           </div>
 
           {(reactions.length > 0 || canReact) && (
             <div
-              className="relative mt-2 flex flex-wrap items-center gap-1"
+              className="sticky-card-reactions"
               onClick={(e) => e.stopPropagation()}
             >
               {reactions.map(([emoji, participantIds]) => {
@@ -178,11 +187,7 @@ export function StickyCard({
                     type="button"
                     disabled={!canReact}
                     onClick={() => onToggleReaction(card.id, emoji)}
-                    className={`rounded-full border px-2 py-0.5 text-xs transition ${
-                      reacted
-                        ? 'border-brand-yellow/40 bg-amber-50 text-brand-yellow-dark'
-                        : 'border-black/10 bg-white/70 text-brand-black hover:bg-white'
-                    } disabled:cursor-default`}
+                    className={`sticky-card-reaction ${reacted ? 'sticky-card-reaction-active' : ''}`}
                   >
                     {emoji} {participantIds.length}
                   </button>
@@ -193,7 +198,8 @@ export function StickyCard({
                   <button
                     type="button"
                     onClick={() => setShowReactionPicker((open) => !open)}
-                    className="rounded-full border border-dashed border-black/15 bg-white/70 px-2 py-0.5 text-xs text-subtle hover:text-brand-black"
+                    className="sticky-card-reaction-add"
+                    title="Add reaction"
                   >
                     +
                   </button>
@@ -214,7 +220,7 @@ export function StickyCard({
           )}
 
           {card.mergedFrom && (
-            <span className="text-subtle mt-1 block text-[10px]">Grouped ({card.mergedFrom.length} cards)</span>
+            <span className="sticky-card-grouped-badge">Grouped · {card.mergedFrom.length} cards</span>
           )}
 
           <CardComments
@@ -224,17 +230,18 @@ export function StickyCard({
             youId={youId}
             isFacilitator={isFacilitator}
             canComment={canComment}
+            showCommentAuthors={showCommentAuthors}
             onAddComment={onAddComment}
             onToggleCommentLike={onToggleCommentLike}
             onToggleCommentReaction={onToggleCommentReaction}
             onDeleteComment={onDeleteComment}
           />
-        </>
+        </div>
       )}
 
       {(canModify || (isFacilitator && card.mergedFrom)) && !editing && (
         <div
-          className="absolute right-1 top-1 flex gap-1 opacity-0 transition group-hover:opacity-100"
+          className="sticky-card-actions"
           onClick={(e) => e.stopPropagation()}
         >
           {canModify && (
@@ -246,14 +253,14 @@ export function StickyCard({
                   setDraftEmoji(card.emoji)
                   setEditing(true)
                 }}
-                className="rounded bg-white/80 px-1.5 py-0.5 text-[10px] text-brand-black shadow"
+                className="sticky-card-action-btn"
               >
                 Edit
               </button>
               <button
                 type="button"
                 onClick={() => onDelete(card.id)}
-                className="rounded bg-white/80 px-1.5 py-0.5 text-[10px] text-red-600 shadow"
+                className="sticky-card-action-btn sticky-card-action-btn-danger"
               >
                 Delete
               </button>
@@ -263,7 +270,7 @@ export function StickyCard({
             <button
               type="button"
               onClick={() => onUngroup(card.id)}
-              className="rounded bg-white/80 px-1.5 py-0.5 text-[10px] text-brand-yellow-dark shadow"
+              className="sticky-card-action-btn"
             >
               Ungroup
             </button>

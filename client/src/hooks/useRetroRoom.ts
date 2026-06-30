@@ -31,11 +31,13 @@ export function useRetroRoom() {
   const [restoringSession, setRestoringSession] = useState(() => {
     const urlRoomId = parseInviteRoomId()
     const saved = loadRoomSession()
-    return Boolean(saved && (!urlRoomId || urlRoomId === saved.roomId))
+    return Boolean(urlRoomId && saved && urlRoomId === saved.roomId)
   })
   const eventSourceRef = useRef<EventSource | null>(null)
   const sessionRef = useRef<{ roomId: string; participantId: string } | null>(null)
   const restoringRef = useRef(restoringSession)
+  const reconnectTimerRef = useRef<number | null>(null)
+  const reconnectAttemptRef = useRef(0)
 
   useEffect(() => {
     function syncInviteFromUrl() {
@@ -50,8 +52,16 @@ export function useRetroRoom() {
     eventSourceRef.current = null
   }, [])
 
+  const cancelReconnectTimer = useCallback(() => {
+    if (reconnectTimerRef.current !== null) {
+      window.clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
+  }, [])
+
   const handleRoomClosed = useCallback(
     (message: string) => {
+      cancelReconnectTimer()
       closeStream()
       sessionRef.current = null
       clearRoomSession()
@@ -61,18 +71,20 @@ export function useRetroRoom() {
       setRestoringSession(false)
       setError(message)
     },
-    [closeStream],
+    [cancelReconnectTimer, closeStream],
   )
 
   const finishRestore = useCallback(() => {
     restoringRef.current = false
     setRestoringSession(false)
-    clearRoomSession()
   }, [])
 
   const subscribe = useCallback(
     (roomId: string, participantId: string) => {
       closeStream()
+      cancelReconnectTimer()
+      reconnectAttemptRef.current = 0
+
       const session = { roomId: roomId.trim().toUpperCase(), participantId }
       sessionRef.current = session
       saveRoomSession(session)
@@ -83,6 +95,7 @@ export function useRetroRoom() {
       )
 
       stream.addEventListener('room:state', (event) => {
+        reconnectAttemptRef.current = 0
         restoringRef.current = false
         setRestoringSession(false)
         setRoom(normalizeRoomState(JSON.parse(event.data) as ClientRoomState))
@@ -97,14 +110,34 @@ export function useRetroRoom() {
 
       stream.onerror = () => {
         setConnected(false)
-        if (restoringRef.current) {
-          finishRestore()
+        closeStream()
+
+        const activeSession = sessionRef.current
+        if (!activeSession || activeSession.roomId !== session.roomId) return
+
+        reconnectAttemptRef.current += 1
+        const attempt = reconnectAttemptRef.current
+
+        if (attempt > 10) {
+          if (restoringRef.current) {
+            finishRestore()
+            setError('Could not reconnect. Rejoin using your name below.')
+          }
+          return
         }
+
+        const delay = Math.min(400 * attempt, 3000)
+        cancelReconnectTimer()
+        reconnectTimerRef.current = window.setTimeout(() => {
+          if (sessionRef.current?.roomId === session.roomId) {
+            subscribe(session.roomId, session.participantId)
+          }
+        }, delay)
       }
 
       eventSourceRef.current = stream
     },
-    [closeStream, finishRestore, handleRoomClosed],
+    [cancelReconnectTimer, closeStream, finishRestore, handleRoomClosed],
   )
 
   useEffect(() => {
@@ -114,7 +147,11 @@ export function useRetroRoom() {
       setRestoringSession(false)
       return
     }
-    if (urlRoomId && urlRoomId !== saved.roomId) {
+    if (!urlRoomId) {
+      setRestoringSession(false)
+      return
+    }
+    if (urlRoomId !== saved.roomId) {
       clearRoomSession()
       setRestoringSession(false)
       return
@@ -122,8 +159,39 @@ export function useRetroRoom() {
 
     restoringRef.current = true
     setRestoringSession(true)
-    subscribe(saved.roomId, saved.participantId)
-  }, [subscribe])
+
+    let cancelled = false
+
+    void (async () => {
+      const result = await postJson<SessionPayload>('/api/rooms/resume', {
+        roomId: saved.roomId,
+        participantId: saved.participantId,
+      })
+
+      if (cancelled) return
+
+      if (result.ok) {
+        sessionRef.current = {
+          roomId: result.data.roomId,
+          participantId: result.data.participantId,
+        }
+        saveRoomSession(sessionRef.current)
+        setInvitePath(result.data.roomId)
+        setRoom(normalizeRoomState(result.data.state))
+        setConnected(true)
+        setError(null)
+        finishRestore()
+        subscribe(result.data.roomId, result.data.participantId)
+        return
+      }
+
+      subscribe(saved.roomId, saved.participantId)
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [finishRestore, subscribe])
 
   useEffect(() => {
     let cancelled = false
@@ -143,9 +211,15 @@ export function useRetroRoom() {
     return () => {
       cancelled = true
       clearInterval(interval)
+    }
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      cancelReconnectTimer()
       closeStream()
     }
-  }, [closeStream])
+  }, [cancelReconnectTimer, closeStream])
 
   const createRoom = useCallback(
     async (
@@ -186,12 +260,17 @@ export function useRetroRoom() {
     async (roomId: string, name: string, password?: string) => {
       const trimmedName = name.trim()
       const avatar = avatarForSession(trimmedName)
+      const normalizedRoomId = roomId.trim().toUpperCase()
+      const saved = loadRoomSession()
+      const reclaimParticipantId =
+        saved?.roomId === normalizedRoomId ? saved.participantId : undefined
 
       const result = await postJson<SessionPayload>('/api/rooms/join', {
-        roomId: roomId.trim().toUpperCase(),
+        roomId: normalizedRoomId,
         name: trimmedName,
         password: password?.trim() || undefined,
         avatar,
+        participantId: reclaimParticipantId,
       })
 
       if (!result.ok) {
@@ -305,6 +384,13 @@ export function useRetroRoom() {
     [withSession],
   )
 
+  const setCommentAuthorsVisible = useCallback(
+    (visible: boolean) => {
+      void withSession('set-comment-authors-visible', { visible })
+    },
+    [withSession],
+  )
+
   const toggleReaction = useCallback(
     (cardId: string, emoji: string) => {
       void withSession('toggle-reaction', { cardId, emoji })
@@ -398,6 +484,7 @@ export function useRetroRoom() {
       })
     }
 
+    cancelReconnectTimer()
     closeStream()
     sessionRef.current = null
     clearRoomSession()
@@ -406,7 +493,7 @@ export function useRetroRoom() {
     clearInvitePath()
     setInviteRoomId(null)
     setRestoringSession(false)
-  }, [closeStream])
+  }, [cancelReconnectTimer, closeStream])
 
   return {
     connected,
@@ -428,6 +515,7 @@ export function useRetroRoom() {
     removeColumn,
     renameColumn,
     updateTitle,
+    setCommentAuthorsVisible,
     toggleReaction,
     addComment,
     toggleCommentLike,

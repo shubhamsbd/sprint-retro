@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { emitRoomClosed, emitRoomState, subscribe } from './broadcast.js'
+import { emitRoomClosed, emitRoomState, notifyAfterLeave, subscribe } from './broadcast.js'
 import { isValidPhase } from './exportSummary.js'
 import { methodNotAllowed, readJsonBody } from './http.js'
 import {
@@ -19,10 +19,12 @@ import {
   moveCard,
   removeColumn,
   renameColumn,
+  resumeRoom,
   serializeRoom,
   setPhase,
   startTimer,
   stopTimer,
+  setCommentAuthorsVisible,
   toggleCommentLike,
   toggleCommentReaction,
   toggleReaction,
@@ -92,6 +94,7 @@ export async function handleJoinRoom(req: VercelRequest, res: VercelResponse): P
     roomId?: string
     name?: string
     password?: string
+    participantId?: string
     avatar?: { emoji?: string; color?: string }
   }>(req)
 
@@ -114,7 +117,13 @@ export async function handleJoinRoom(req: VercelRequest, res: VercelResponse): P
     return
   }
 
-  const result = await joinRoom(body.roomId, body.name, password || undefined, body.avatar)
+  const result = await joinRoom(
+    body.roomId,
+    body.name,
+    password || undefined,
+    body.avatar,
+    body.participantId,
+  )
   if (!result.ok) {
     const errors: Record<typeof result.reason, { status: number; message: string }> = {
       not_found: { status: 404, message: 'Room not found' },
@@ -132,6 +141,41 @@ export async function handleJoinRoom(req: VercelRequest, res: VercelResponse): P
   emitRoomState(joinedRoom.id)
 
   const payload: SessionPayload = { roomId: joinedRoom.id, participantId, state }
+  res.status(200).json({ ok: true, data: payload })
+}
+
+export async function handleResumeRoom(req: VercelRequest, res: VercelResponse): Promise<void> {
+  if (req.method !== 'POST') {
+    methodNotAllowed(res, ['POST'])
+    return
+  }
+
+  const body = await readJsonBody<{
+    roomId?: string
+    participantId?: string
+  }>(req)
+
+  if (!body?.roomId?.trim() || !body?.participantId?.trim()) {
+    res.status(400).json({ ok: false, error: 'Room ID and participant ID are required' })
+    return
+  }
+
+  const result = await resumeRoom(body.roomId, body.participantId)
+  if (!result.ok) {
+    const errors = {
+      not_found: { status: 404, message: 'Room not found' },
+      participant_not_found: { status: 404, message: 'Session expired — rejoin with your name' },
+    } as const
+    const { status, message } = errors[result.reason]
+    res.status(status).json({ ok: false, error: message })
+    return
+  }
+
+  const { room, participantId } = result
+  const state = serializeRoom(room, participantId)
+  emitRoomState(room.id)
+
+  const payload: SessionPayload = { roomId: room.id, participantId, state }
   res.status(200).json({ ok: true, data: payload })
 }
 
@@ -202,6 +246,8 @@ export async function handleRoomAction(
       return handleRenameColumn(req, res, roomId)
     case 'update-title':
       return handleUpdateTitle(req, res, roomId)
+    case 'set-comment-authors-visible':
+      return handleSetCommentAuthorsVisible(req, res, roomId)
     case 'toggle-reaction':
       return handleToggleReaction(req, res, roomId)
     case 'add-comment':
@@ -379,6 +425,25 @@ async function handleUpdateTitle(req: VercelRequest, res: VercelResponse, roomId
   }
   if (!(await updateRoomTitle(roomId, body.participantId, body.title))) {
     res.status(403).json({ ok: false, error: 'Unable to update title' })
+    return
+  }
+  emitRoomState(roomId)
+  res.status(200).json({ ok: true })
+}
+
+async function handleSetCommentAuthorsVisible(
+  req: VercelRequest,
+  res: VercelResponse,
+  roomId: string,
+) {
+  if (req.method !== 'POST') return methodNotAllowed(res, ['POST'])
+  const body = await readJsonBody<{ participantId?: string; visible?: boolean }>(req)
+  if (!body?.participantId || typeof body.visible !== 'boolean') {
+    res.status(400).json({ ok: false, error: 'participantId and visible are required' })
+    return
+  }
+  if (!(await setCommentAuthorsVisible(roomId, body.participantId, body.visible))) {
+    res.status(403).json({ ok: false, error: 'Only the facilitator can change comment name visibility' })
     return
   }
   emitRoomState(roomId)
@@ -623,7 +688,7 @@ async function handleLeave(req: VercelRequest, res: VercelResponse, roomId: stri
   const participantId = await requireParticipantId(req, res)
   if (!participantId) return
   await leaveRoom(participantId, roomId)
-  emitRoomState(roomId)
+  await notifyAfterLeave(roomId, participantId)
   res.status(200).json({ ok: true })
 }
 

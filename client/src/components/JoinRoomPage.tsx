@@ -141,7 +141,7 @@ export function JoinRoomPage({
               placeholder="Alex"
               required
               autoFocus
-              className="input-field-light w-full rounded-xl px-4 py-3"
+              className="input-field w-full rounded-xl px-4 py-3"
             />
           </label>
 
@@ -155,7 +155,7 @@ export function JoinRoomPage({
                 placeholder="Enter the password from your host"
                 required
                 minLength={4}
-                className="input-field-light w-full rounded-xl px-4 py-3"
+                className="input-field w-full rounded-xl px-4 py-3"
               />
             </label>
           )}

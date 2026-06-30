@@ -101,6 +101,7 @@ export interface RoomState {
   creatorId: string
   timerEndsAt: number | null
   timerDurationSec: number | null
+  showCommentAuthors: boolean
   passwordProtected: boolean
   participantCount: number
   maxParticipants: number
@@ -156,6 +157,7 @@ export function normalizeRoomState(state: ClientRoomState): ClientRoomState {
     cards,
     canReact: state.canReact ?? state.phase !== 'done',
     canComment: state.canComment ?? state.phase !== 'done',
+    showCommentAuthors: state.showCommentAuthors ?? true,
   }
 }
 
@@ -193,16 +195,16 @@ export const PHASE_ICONS: Record<RetroPhase, string> = {
   done: '✅',
 }
 
-export function columnStyleClass(index: number): string {
-  return COLUMN_STYLE_CLASSES[index % COLUMN_STYLE_CLASSES.length]
+export function columnStyleClass(_index: number): string {
+  return 'sticky-card-note'
 }
 
-export function columnZoneClass(index: number): string {
-  return COLUMN_ZONE_CLASSES[index % COLUMN_ZONE_CLASSES.length]
+export function columnZoneClass(_index: number): string {
+  return 'column-zone'
 }
 
-export function columnHeaderClass(index: number): string {
-  return COLUMN_HEADER_CLASSES[index % COLUMN_HEADER_CLASSES.length]
+export function columnHeaderClass(_index: number): string {
+  return 'column-header'
 }
 
 export function columnIcon(index: number): string {

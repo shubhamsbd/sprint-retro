@@ -96,10 +96,10 @@ export function RetroColumn({
   }
 
   return (
-    <div className={`column-board ${zoneClass} flex min-h-[440px] flex-col`}>
+    <div className={`column-board ${zoneClass} flex min-h-[420px] flex-col lg:h-full lg:min-h-0`}>
       <div className={`h-1.5 shrink-0 ${headerClass}`} />
 
-      <div className="flex flex-1 flex-col p-4">
+      <div className="flex min-h-0 flex-1 flex-col p-4">
         <div className="mb-4 flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             {renaming ? (
@@ -140,7 +140,7 @@ export function RetroColumn({
                   setRenameDraft(column.label)
                   setRenaming(true)
                 }}
-                className="rounded-lg p-1 text-subtle transition hover:bg-white/10 hover:text-brand-yellow-light"
+                className="rounded-lg p-1 text-subtle transition hover:bg-brand-gray hover:text-brand-yellow-dark"
                 title="Rename column"
                 aria-label={`Rename ${column.label} column`}
               >
@@ -151,7 +151,7 @@ export function RetroColumn({
               <button
                 type="button"
                 onClick={() => onRemoveColumn(column.id)}
-                className="rounded-lg p-1 text-subtle transition hover:bg-red-950/50 hover:text-red-400"
+                className="rounded-lg p-1 text-subtle transition hover:bg-red-50 hover:text-red-600"
                 title="Remove column"
                 aria-label={`Remove ${column.label} column`}
               >
@@ -161,7 +161,7 @@ export function RetroColumn({
           </div>
         </div>
 
-        <div className="column-card-stack flex flex-1 flex-col gap-2.5 overflow-y-auto pb-1">
+        <div className="column-card-stack flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto pb-1">
           {cards.length === 0 && !isCollect && (
             <div className="empty-column flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
               <span className="empty-column-icon mb-2 text-2xl opacity-80">{emptyState.icon}</span>
@@ -196,6 +196,7 @@ export function RetroColumn({
               onDeleteComment={onDeleteComment}
               participantsById={participantsById}
               canComment={room.canComment}
+              showCommentAuthors={room.showCommentAuthors}
               columnClass={`${columnClass} ${stickyTiltClass(cardIndex)}`}
             />
           ))}
@@ -209,13 +210,13 @@ export function RetroColumn({
         </div>
 
         {isCollect && (
-          <form onSubmit={handleAdd} className="compose-box relative mt-4 p-3">
+          <form onSubmit={handleAdd} className="compose-box relative mt-4 shrink-0 p-3">
             <div className="mb-2 flex items-start gap-2">
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setShowEmojiPicker((open) => !open)}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/40 text-lg shadow-sm transition hover:scale-110 hover:border-brand-yellow/40"
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-black/8 bg-white text-lg shadow-sm transition hover:scale-110 hover:border-brand-yellow/40"
                   title="Add emoji"
                 >
                   {draftEmoji ?? '🙂'}
@@ -236,7 +237,7 @@ export function RetroColumn({
                 <button
                   type="button"
                   onClick={() => setDraftEmoji(undefined)}
-                  className="text-subtle self-center text-xs hover:text-on-dark"
+                  className="text-subtle self-center text-xs hover:text-brand-black"
                 >
                   Clear
                 </button>
@@ -246,13 +247,13 @@ export function RetroColumn({
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder={columnComposePlaceholder(column)}
-              rows={2}
-              className="input-field mb-2 w-full rounded-xl px-3 py-2 text-sm"
+              rows={3}
+              className="input-field mb-2 w-full rounded-xl px-3.5 py-2.5 text-sm leading-relaxed"
             />
             <button
               type="submit"
               disabled={!draft.trim()}
-              className="btn-primary btn-add-card w-full rounded-xl px-3 py-2.5 text-sm disabled:opacity-50"
+              className="btn-primary btn-add-card w-full rounded-xl px-3 py-2.5 text-sm"
             >
               ＋ Add card
             </button>
