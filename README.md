@@ -26,7 +26,7 @@ npm install --prefix client
 npm run dev
 ```
 
-- App: http://localhost:5175
+- App: http://localhost:5174
 - API (local dev server): http://localhost:3000/api
 
 Open the app in two browser tabs to simulate a team session. Local dev uses a lightweight Express server (`scripts/dev-server.ts`) — no Vercel CLI login required.
@@ -38,7 +38,6 @@ sprint-retrospective/
 ├── api/      # Vercel serverless routes
 ├── client/   # Vite React frontend
 ├── lib/      # Shared room logic
-├── scripts/  # Local Express dev server
 ├── vercel.json
 └── package.json
 ```
@@ -53,7 +52,7 @@ sprint-retrospective/
    - Connect it to the project. Vercel injects connection env vars automatically (`REDIS_URL` for Official Redis, or `KV_REST_API_URL` / `KV_REST_API_TOKEN` for Upstash).
 5. Redeploy.
 
-Without Redis linked, each API route runs in an isolated function with its own memory — rooms created on one route are invisible to others, and reload will show "Room not found". The app integrates Redis in `lib/roomPersistence.ts`.
+Without Redis linked, each API route runs in an isolated function with its own memory — rooms created on one route are invisible to others, and reload will show "Room not found". The app already integrates Redis in `lib/roomPersistence.ts`; you do **not** need to add the Vercel quickstart code yourself.
 
 The frontend and API are served from the same Vercel project — no separate backend host is needed.
 

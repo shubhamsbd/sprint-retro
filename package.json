@@ -2,7 +2,7 @@
   "name": "sprint-retrospective",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n api,web -c cyan,teal \"npm run dev:api\" \"npm run dev:web\"",
+    "dev": "concurrently -n api,web -c yellow,cyan \"npm run dev:api\" \"npm run dev:web\"",
     "dev:api": "npx tsx watch scripts/dev-server.ts",
     "dev:web": "npm run dev --prefix client",
     "build": "npm run build --prefix client"
@@ -18,6 +18,7 @@
     "concurrently": "^9.2.0",
     "express": "^5.1.0",
     "tsx": "^4.20.5",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "vercel": "^42.3.0"
   }
 }
